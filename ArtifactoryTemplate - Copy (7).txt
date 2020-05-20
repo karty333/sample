@@ -1,0 +1,57 @@
+parameters:
+  - name: artifactoryService
+    default: 'Artifactory'
+  - name: specSource
+    default: 'taskConfiguration'
+  - name: collectBuildInfo
+    default: true
+  - name: buildName
+    default: $(Build.DefinitionName) 
+  - name: buildNumber
+    default: $(Build.BuildNumber)
+  - name: failNoOp
+    default: true
+stages:
+- stage: Artifactory_Upload_and_Scan
+  jobs:
+  - job: Build_Artifact_Upload_and_Scan
+    variables:
+    - group: Artifactory_Variables
+    steps: 
+     - download: current
+       artifact: Myartifacts
+     - task: ArtifactoryGenericUpload@1
+       displayName: 'Upload artifacts to Jfrog'
+       inputs:
+        artifactoryService: ${{ parameters.artifactoryService }}
+        specSource: ${{ parameters.specSource }}
+        ${{ if eq(parameters['specSource'], 'taskConfiguration') }}:
+          fileSpec: |
+           {
+            "files": [
+              {
+                "pattern": "$(Pipeline.Workspace)/$(Upload_src_lctn)",
+                "target": "$(Upload_dest_lctn)"
+              }
+            ]
+           }
+        ${{ if ne(parameters['specSource'], 'taskConfiguration') }}:
+          file: $(File_lctn)
+        collectBuildInfo: ${{ parameters.collectBuildInfo }}
+        buildName: ${{ parameters.buildName }}
+        buildNumber: ${{ parameters.buildNumber }}
+        failNoOp: ${{ parameters.failNoOp }}
+  
+     - task: ArtifactoryPublishBuildInfo@1
+       displayName: 'Artifactory Publish Build Info'
+       inputs:
+        artifactoryService: ${{ parameters.artifactoryService }}
+        buildName: ${{ parameters.buildName }}
+        buildNumber: ${{ parameters.buildNumber }}
+
+     - task: ArtifactoryXrayScan@1
+       displayName: 'Artifactory Xray Scan'
+       inputs:
+        artifactoryService: ${{ parameters.artifactoryService }}
+        buildName: ${{ parameters.buildName }}
+        buildNumber: ${{ parameters.buildNumber }}
